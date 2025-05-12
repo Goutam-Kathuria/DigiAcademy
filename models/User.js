@@ -1,11 +1,10 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-    firstName:{type:String,required:true},
-    lastName:{type:String,required:true},
+    name:String,
     password:{type:String,required:true},
-    mobileNumber:{type:String,required:true,unique:true},
-    email:{type:String,required:false,unique:false},
+    mobileNumber:{type:String,required:false,unique:true},
+    email:{type:String,required:true,unique:false},
     otp:{type:String,require:false},
     otpExpires:Date,
     role:{enum:["Teacher","Student"],default:'Student',type:String},

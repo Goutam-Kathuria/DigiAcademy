@@ -1,64 +1,24 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const twilio = require('twilio');
-const sendMail = require('../config/nodemailer');  // For email sending
-require('dotenv').config()
-const client = new twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
 
-// Regex for validating email and phone
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const phoneRegex = /^\+91\d{10}$/;
+const sendMail = require('../config/nodemailer');
 
-const normalizeNumber = (num) => num.replace(/\D/g, '').replace(/^91/, '');
 
-// Temporary storage for users waiting for OTP verification
 const tempUser = {};
-
-const sendOtpToPhone = async (mobileNumber, otp) => {
-  try {
-    const message = await client.messages.create({
-      body: `Your OTP is ${otp}`,
-      to: mobileNumber,  // The recipient's phone number
-      from: process.env.Number // Your Twilio number
-    });
-    console.log('OTP sent to phone:', message.sid);
-  } catch (error) {
-    console.error('Error sending OTP to phone:', error);
-  }
-};
-
 
 exports.register = async (req, res) => {
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const otpExpires = Date.now() + 5 * 60 * 1000; // OTP expires in 5 minutes
-  const { identifier, password, firstName, lastName, role } = req.body;
+  const { email, password,name,mobileNumber, role } = req.body;
 
-  let normalizedNumber = null;
-  let email = null;
-
-  // Check whether the identifier is an email or phone number
- if (emailRegex.test(identifier)) {
-  console.log('Valid email');
-  email = identifier;
-} else if (phoneRegex.test(identifier)) {
-  console.log('Valid phone number');
-  normalizedNumber = normalizeNumber(identifier);
-} else {  
-  return res.status(400).json({ message: 'Invalid email or phone number' });
-}
 
   try {
-    // Check if the user already exists in the database
-    const existingUser = await User.findOne(
-      email ? { email } : { mobileNumber: normalizedNumber }
-    );
+    const existingUser = await User.findOne({email});
 
     if (existingUser) {
-      // If user exists, just log them in (without OTP)
       const match = await bcrypt.compare(password, existingUser.password);
       if (!match) {
-        return res.status(401).json({ message: 'Wrong password' });
+        return res.status(400).json({ message: 'Wrong password' });
       }
 
       const token = jwt.sign({ id: existingUser._id }, process.env.JWT_SECRET, {
@@ -67,33 +27,20 @@ exports.register = async (req, res) => {
 
       return res.status(200).json({ message: 'Login successful', token });
     } else {
-      // If user doesn't exist, proceed with registration and OTP
       const hashPassword = await bcrypt.hash(password, 10);
-      const userTempKey = email || normalizedNumber;
-
-      tempUser[userTempKey] = {
-        firstName,
-        lastName,
+      tempUser[email] = {
+        name,
         password: hashPassword,
         email,
-        mobileNumber: normalizedNumber,
+        mobileNumber,
         role,
         otp,
-        otpExpires,
       };
-
-      // Send OTP based on registration method
-      if (normalizedNumber) {
-        // Send OTP to phone if registered with phone number
-        await sendOtpToPhone(normalizedNumber, otp);
-      } else {
-        // Send OTP to email if registered with email
         await sendMail(email, otp);
-      }
 
-      console.log('Registering Temp User:', tempUser[userTempKey]);
+      console.log('Registering Temp User:', tempUser[email]);
 
-      return res.status(200).json({ message: 'OTP sent successfully', identifier: userTempKey });
+      return res.status(200).json({ message: 'OTP sent successfully', });
     }
   } catch (error) {
     console.error(error);
@@ -101,12 +48,9 @@ exports.register = async (req, res) => {
   }
 };
 exports.verifyOtp = async (req, res) => {
-  const { identifier, otp } = req.body;
+  const { email, otp } = req.body;
 
-  const isEmail = emailRegex.test(identifier);
-  const key = isEmail ? identifier : normalizeNumber(identifier);
-
-  const temp = tempUser[key];
+  const temp = tempUser[email];
   if (!temp || temp.otp !== otp || temp.otpExpires < Date.now()) {
     return res.status(400).json({ message: 'Invalid or expired OTP' });
   }
@@ -114,8 +58,7 @@ exports.verifyOtp = async (req, res) => {
   try {
     // Create a new user and save it to the database
     const newUser = new User({
-      firstName: temp.firstName,
-      lastName: temp.lastName,
+      name: temp.name,
       email: temp.email,
       password: temp.password,
       mobileNumber: temp.mobileNumber,
@@ -123,7 +66,7 @@ exports.verifyOtp = async (req, res) => {
     });
 
     await newUser.save();
-    delete tempUser[key]; // Remove temp user after saving
+    delete tempUser[email]; // Remove temp user after saving
 
     return res.status(201).json({ message: 'OTP verified. Registration successful.' });
   } catch (error) {
