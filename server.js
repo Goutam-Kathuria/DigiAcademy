@@ -9,7 +9,7 @@ connectDb();
 
 const app = express()
 app.use(cors())
-
+app.use('/uploads', express.static('uploads'));
 app.use(session({
     secret: process.env.JWT_SECRET,
     resave: false,
