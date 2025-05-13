@@ -1,7 +1,7 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-
+const Banner = require('../models/Banner')
 const sendMail = require('../config/nodemailer');
 
 
@@ -133,6 +133,34 @@ return res.json(user)
 return res.status(500).json({message:'An Error Occured'})
 }
 }
+
+exports.addCourse = async (req,res) => {
+  try {  
+   const {bannerId, title}=req.body
+   const image = req.file?.filename;
+   const newCourse = await Banner.create({bannerId,image,title})
+   return res.status(200).json({message:'Course Added Succesfully',newCourse})
+} catch (error) {
+  console.error(error);
+  
+    return res.status(500).json({message:'An Error Occured'})
+  }
+}
+exports.getCourse= async (req,res) => {
+  const{bannerId}=req.query
+   let filters={}
+    if(bannerId){
+    filters.bannerId={$regex:bannerId,$options:"i"}
+    }
+  try {
+  const course =await Banner.find(filters)
+  return res.json(course)
+   } catch (error) {
+    console.error(error);
+    return res.status(500).json({message:'An Error Occured'})
+  }
+}
+
 // exports.stats=async (req,res) => {
 //     try {
 //     const{income,sessions,conversionRate,traffic}=req.body
