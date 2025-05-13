@@ -40,7 +40,7 @@ exports.register = async (req, res) => {
 
       console.log('Registering Temp User:', tempUser[email]);
 
-      return res.status(200).json({ message: 'OTP sent successfully', });
+      return res.status(200).json({ message: 'OTP sent successfully' });
     }
   } catch (error) {
     console.error(error);
@@ -51,7 +51,8 @@ exports.verifyOtp = async (req, res) => {
   const { email, otp } = req.body;
 
   const temp = tempUser[email];
-  if (!temp || temp.otp !== otp || temp.otpExpires < Date.now()) {
+  console.log(temp.otp,otp);
+  if (!temp || temp.otp !== otp) {
     return res.status(400).json({ message: 'Invalid or expired OTP' });
   }
 
